@@ -14,6 +14,12 @@ from McsPy import ureg
 
 McsPy.McsData.VERBOSE = False
 
+def split_where(mask):
+    mask = np.concatenate(([False], mask, [False] ))
+    idx = np.flatnonzero(mask[1:] != mask[:-1])
+    return idx.reshape((-1, 2))
+
+
 def print_list(filename):
     raw_data = McsPy.McsData.RawData(filename)
     print("Listing {}".format(filename))
@@ -52,7 +58,7 @@ def print_list(filename):
         '''
 
 
-def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, output=None):
+def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, digitize=False, output=None):
     raw_data = McsPy.McsData.RawData(filename)
     rec = raw_data.recordings[recording]
 
@@ -122,7 +128,7 @@ def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, outpu
                 ts = np.ma.masked_outside(ts, t0, t1)
                 signal = np.ma.array(signal, mask=ts.mask)
 
-                n_segments = signal.shape[1]
+                n_segments = np.count_nonzero(np.ma.count(ts, axis=0))
                 for j in range(n_segments):
                     ax.plot(ts[:,j], signal[:,j], alpha=0.5, color='#FBC15E')
 
@@ -136,7 +142,20 @@ def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, outpu
 
                 ymin, ymax = ax.get_ylim()
                 ymax = ymin + (ymax - ymin) / 20
-                ax.vlines(ts, ymin, ymax, color='#8EBA42')
+                ax.vlines(ts.compressed(), -100, -90, color='#8EBA42')
+
+        if digitize:
+            th_hi = 5*std
+            th_lo = -5*std
+            bits = np.where((data > th_lo) & (data < th_hi), 0, 1)
+
+            idx = split_where(bits)
+            for i, j in idx:
+                ax.plot(t[i:j], data[i:j], color='#988ED5', marker='.')
+
+            print(", detected {} high bits".format(idx.shape[0]), end='')
+
+            ax.plot(t, -90 + 10*bits, color='#988ED5')
 
         print("")
 
@@ -155,7 +174,8 @@ def main(args):
         print_list(args.filename)
         return
 
-    plot(args.filename, args.recording, args.channels, args.spikes, args.t0, args.t1, args.output)
+    plot(args.filename, args.recording, args.channels, args.spikes, args.t0,
+            args.t1, args.digitize, args.output)
 
 if __name__ == '__main__':
     import argparse
@@ -171,6 +191,7 @@ if __name__ == '__main__':
             help='recording id')
     parser.add_argument('-s', '--spikes', action='store_true',
             help='plot spike data')
+    parser.add_argument('-d', '--digitize', action='store_true')
     parser.add_argument('-t0', type=float, default=0)
     parser.add_argument('-t1', type=float, default=inf)
     parser.add_argument('channels', nargs='*', type=int,

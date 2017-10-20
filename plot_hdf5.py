@@ -3,6 +3,8 @@ from __future__ import print_function, division
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+import datetime
 
 inf = float('inf')
 
@@ -31,14 +33,14 @@ def print_list(filename):
         stream = rec.analog_streams[0]
         n_channels = stream.channel_data.shape[0]
         n_samples = stream.channel_data.shape[1]
-        channel_ids = range(n_channels)
+        channels = stream.channel_infos.keys()
         # print("  Analog stream: {}".format(stream.label))
         print("  {} channels, {} samples per channel".format(n_channels, n_samples))
-        for j in range(n_channels):
+        for j, ch in enumerate(channels):
             if j % 8 == 0:
                 print("  ", end="")
-            ci = stream.channel_infos[j]
-            s = "[{}] \"{}\"".format(j, ci.label)
+            ci = stream.channel_infos[ch]
+            s = "[{}] \"{}\"".format(ch, ci.label)
             print(s.ljust(12), end="")
             if j % 8 == 7:
                 print("")
@@ -57,6 +59,9 @@ def print_list(filename):
                 j, ci.label, seg.segment_sample_count))
         '''
 
+def format_time(t, pos=None):
+    dt = datetime.timedelta(seconds=t)
+    return str(dt)
 
 def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, digitize=False, output=None):
     raw_data = McsPy.McsData.RawData(filename)
@@ -67,7 +72,7 @@ def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, digit
     timestamps = rec.timestamp_streams[0].timestamp_entity
 
     if not channels:
-        channels = range(stream.channel_data.shape[0])
+        channels = stream.channel_infos.keys()
 
     n_channels = len(channels)
     n_cols = int(np.ceil(np.sqrt(n_channels)))
@@ -105,18 +110,18 @@ def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, digit
         if i % n_cols == 0:
             ax.set_ylabel("uV")
         if i >= (n_cols * (n_rows - 1)):
-            ax.set_xlabel("s")
-        ax.set_ylim(-100, 100)
+            ax.set_xlabel("Time")
+
         ax.set_xlim(t[0], t[-1])
+        ax.xaxis.set_major_formatter(ticker.FuncFormatter(format_time))
         ax.plot(t, data, color='#E24A33')
 
-        if spikes:
-            # +/- 5std
-            std = np.std(data)
-            print(", 5*std={}".format(5*std), end='')
-            ax.axhline(5*std, color='#E24A33')
-            ax.axhline(-5*std, color='#348ABD')
+        ymin, ymax = ax.get_ylim()
+        ylim = max(abs(ymin), abs(ymax))
+        yheight = 2 * ylim
+        ybot = -ylim
 
+        if spikes:
             # Segments
             if ch in segments:
                 signal, unit = segments[ch].get_segment_in_range(0, False)
@@ -130,7 +135,7 @@ def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, digit
 
                 n_segments = np.count_nonzero(np.ma.count(ts, axis=0))
                 for j in range(n_segments):
-                    ax.plot(ts[:,j], signal[:,j], alpha=0.5, color='#FBC15E')
+                    ax.plot(ts[:,j], signal[:,j], color='#8EBA42')
 
                 print(", {} spikes".format(n_segments), end='')
 
@@ -140,22 +145,32 @@ def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, digit
                 ts = ureg.convert(ts, "microsecond", "second")
                 ts = np.ma.masked_outside(ts, t0, t1)
 
-                ymin, ymax = ax.get_ylim()
-                ymax = ymin + (ymax - ymin) / 20
-                ax.vlines(ts.compressed(), -100, -90, color='#8EBA42')
+                ymax = ybot + yheight/20
+                ax.vlines(ts.compressed(), ybot, ymax, color='#8EBA42')
+                ybot += 1.1*yheight/20
 
         if digitize:
+            # +/- 5std
+            std = np.std(data)
+            print(", 5*std={}".format(5*std), end='')
+            ax.axhline(5*std, color='#E24A33')
+            ax.axhline(-5*std, color='#348ABD')
+
             th_hi = 5*std
             th_lo = -5*std
             bits = np.where((data > th_lo) & (data < th_hi), 0, 1)
 
             idx = split_where(bits)
             for i, j in idx:
-                ax.plot(t[i:j], data[i:j], color='#988ED5', marker='.')
+                ax.plot(t[i:j], data[i:j], color='#988ED5')
 
             print(", detected {} high bits".format(idx.shape[0]), end='')
 
-            ax.plot(t, -90 + 10*bits, color='#988ED5')
+            height = yheight / 20
+            ax.plot(t, ybot + height * bits, color='#988ED5')
+            # ax.set_ylim(ymin=ymin)
+
+        ax.set_ylim(-ylim, ylim)
 
         print("")
 

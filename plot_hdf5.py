@@ -133,26 +133,31 @@ def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, digit
                 ts = np.ma.masked_outside(ts, t0, t1)
                 signal = np.ma.array(signal, mask=ts.mask)
 
-                n_segments = np.count_nonzero(np.ma.count(ts, axis=0))
-                for j in range(n_segments):
+                cols = np.flatnonzero(np.ma.count(ts, axis=0))
+                n_segments = len(cols)
+                for j in cols:
                     ax.plot(ts[:,j], signal[:,j], color='#8EBA42')
 
-                print(", {} spikes".format(n_segments), end='')
+                print(", {} segments".format(n_segments), end='')
 
             # Timestamps
             if ch in timestamps:
                 ts, unit = timestamps[ch].get_timestamps()
                 ts = ureg.convert(ts, "microsecond", "second")
                 ts = np.ma.masked_outside(ts, t0, t1)
+                ts = ts.compressed()
 
                 ymax = ybot + yheight/20
-                ax.vlines(ts.compressed(), ybot, ymax, color='#8EBA42')
+                ax.vlines(ts, ybot, ymax, color='#8EBA42')
                 ybot += 1.1*yheight/20
+
+                print(", {} timestamps".format(len(ts)), end='')
 
         if digitize:
             # +/- 5std
+            mean = np.mean(data)
             std = np.std(data)
-            print(", 5*std={}".format(5*std), end='')
+            print(", mean={}, std={}, 5*std={}".format(mean, std, 5*std), end='')
             ax.axhline(5*std, color='#E24A33')
             ax.axhline(-5*std, color='#348ABD')
 

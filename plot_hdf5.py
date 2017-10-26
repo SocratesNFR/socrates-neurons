@@ -8,18 +8,14 @@ import datetime
 
 inf = float('inf')
 
-plt.style.use('ggplot')
-
 import McsPy.McsData
 import McsPy.McsCMOS
 from McsPy import ureg
 
 McsPy.McsData.VERBOSE = False
 
-def split_where(mask):
-    mask = np.concatenate(([False], mask, [False] ))
-    idx = np.flatnonzero(mask[1:] != mask[:-1])
-    return idx.reshape((-1, 2))
+import nevroutil
+
 
 
 def print_list(filename):
@@ -157,15 +153,18 @@ def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, digit
             # +/- 5std
             mean = np.mean(data)
             std = np.std(data)
-            print(", mean={}, std={}, 5*std={}".format(mean, std, 5*std), end='')
-            ax.axhline(5*std, color='#E24A33')
-            ax.axhline(-5*std, color='#348ABD')
+            th_lo = mean - 5 * std
+            th_hi = mean + 5 * std
 
-            th_hi = 5*std
-            th_lo = -5*std
-            bits = np.where((data > th_lo) & (data < th_hi), 0, 1)
+            print(", mean={}, std={}, th_hi={}, th_lo={}".format(mean, std, th_hi, th_lo), end='')
 
-            idx = split_where(bits)
+            ax.axhline(th_hi, color='#E24A33')
+            ax.axhline(th_lo, color='#348ABD')
+
+
+            bits = nevroutil.digitize(data, th_lo, th_hi)
+
+            idx = nevroutil.split_where(bits)
             for i, j in idx:
                 ax.plot(t[i:j], data[i:j], color='#988ED5')
 

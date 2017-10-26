@@ -4,9 +4,8 @@ import sys
 import os
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
 import pickle
-
-plt.style.use('ggplot')
 
 def main(args):
     print("Loading {}...".format(args.filename))
@@ -40,9 +39,11 @@ def main(args):
 
     plt.title(os.path.basename(args.filename))
 
-    if method == 'per-channel':
-        x = np.arange(len(complexity))
+    x = np.arange(len(complexity))
+    if args.dates:
+        x = data['dates']
 
+    if method == 'per-channel':
         if args.max:
             max = np.array([np.max(v) for v in complexity])
             line, = plt.plot(x, max)
@@ -59,14 +60,13 @@ def main(args):
             color = line.get_color()
 
     else:
-        plt.plot(complexity)
+        plt.plot(x, complexity)
 
     # ugh...
-    labels = map(os.path.basename, files)
-    plt.xticks(np.arange(len(complexity)), labels, rotation='vertical')
-    plt.subplots_adjust(bottom=0.50)
-    xmin, xmax = plt.xlim()
-    plt.xlim(xmin-1, xmax+1)
+    if not args.dates:
+        labels = map(os.path.basename, files)
+        plt.xticks(x, labels, rotation='vertical')
+        plt.subplots_adjust(bottom=0.50)
 
     ymin, ymax = plt.ylim()
     if ymin < 0:
@@ -86,6 +86,8 @@ if __name__ == '__main__':
                         help='save plot to file')
     parser.add_argument('-m', '--max', action='store_true',
                         help='plot max value (per-channel only)')
+    parser.add_argument('-d', '--dates', action='store_true',
+                        help='plot dates on x axis')
     parser.add_argument('filename', metavar='FILE',
                         help='pickle file from complexity_analysis.py')
 

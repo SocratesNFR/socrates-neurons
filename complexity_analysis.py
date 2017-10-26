@@ -4,15 +4,13 @@ import sys
 import os
 import re
 import numpy as np
-import matplotlib.pyplot as plt
 import zlib
 import bz2
 from collections import defaultdict
 import pickle
 import signal
 import pdb
-
-plt.style.use('ggplot')
+import datetime
 
 import McsPy.McsData
 import McsPy.McsCMOS
@@ -45,6 +43,7 @@ def main(args):
     complexity = []
     channel_labels = []
     channel_list = []
+    dates = []
 
     if args.compression == 'zlib':
         compress = zlib.compress
@@ -52,9 +51,19 @@ def main(args):
         compress = bz2.compress
 
     if args.channels != 'all':
-        channels = map(int, args.channels)
+        channels = args.channels.split(',')
+        channels = set(map(int, channels))
     else:
         channels = None
+
+    exclude_channels = None
+    if args.exclude_channels:
+        exclude_channels = args.exclude_channels.split(',')
+        exclude_channels = set(map(int, exclude_channels))
+
+    nsamples = None
+    if args.nsamples != 'all':
+        nsamples = int(args.nsamples)
 
     for i, filename in enumerate(args.files):
         print("Processing {}...".format(filename))
@@ -62,18 +71,25 @@ def main(args):
         rec = raw_data.recordings[0]
         stream = rec.analog_streams[0]
 
+        date = datetime.datetime(1, 1, 1) + datetime.timedelta(microseconds=int(raw_data.date_in_clr_ticks)/10)
+        dates.append(date)
+
         channel_data = stream.channel_data
-        if args.nsamples != 'all':
+        if nsamples:
             # channel_data = channel_data[:,:231000] # For testing
-            assert args.nsamples <= channel_data.shape[1], "Not enough samples (stream has {})".format(channel_data.shape[1])
-            channel_data = channel_data[:,:args.nsamples]
+            assert nsamples <= channel_data.shape[1], "Not enough samples (stream has {})".format(channel_data.shape[1])
+            channel_data = channel_data[:,:nsamples]
 
         chs = channels
         if not chs:
-            chs = stream.channel_infos.keys()
+            chs = set(stream.channel_infos.keys())
+
+        if exclude_channels:
+            chs = chs - exclude_channels
 
         channel_list.append(chs)
 
+        print("  Date: {}".format(date))
         print("  {} channels, {} samples".format(channel_data.shape[0], channel_data.shape[1]))
         print("  ", end='')
 
@@ -136,7 +152,8 @@ def main(args):
             'channels': channel_list,
             'channel_labels': channel_labels,
             'nsamples': args.nsamples,
-            'complexity': complexity
+            'complexity': complexity,
+            'dates': dates
         }
         pickle.dump(d, open(args.output, 'wb'))
 
@@ -154,7 +171,8 @@ if __name__ == '__main__':
             help='compression algorithm (default: %(default)s)')
     parser.add_argument('-m', '--method', choices=('all', 'per-channel'), default='all',
             help='complexity method')
-    parser.add_argument('-ch', '--channels', nargs='*', default='all')
+    parser.add_argument('-ch', '--channels', default='all')
+    parser.add_argument('-ech', '--exclude-channels')
     parser.add_argument('-n', '--nsamples', default='all')
     parser.add_argument('files', nargs='+', metavar='FILE',
             help='files to analyse (hdf5)')

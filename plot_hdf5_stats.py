@@ -44,7 +44,7 @@ from McsPy import ureg
 
 McsPy.McsData.VERBOSE = False
 
-stats_available = set(('sample_count', 'spike_count', 'bit_count', 'mean', 'std'))
+stats_available = set(('sample_count', 'spike_count', 'bit_count', 'mean', 'std', 'min', 'max'))
 
 def sample_count(raw_data):
     """ Sample count all channels """
@@ -89,8 +89,61 @@ def bit_count(raw_data, channels, t0=0, t1=inf):
 
     return bit_counts
 
+def stream_mean(raw_data, channels, t0=0, t1=inf):
+    """ Mean per channel """
+    rec = raw_data.recordings[0]
+    stream = rec.analog_streams[0]
+    stream_data = get_stream_data_in_range(stream, channels, t0, t1)
 
+    means = np.zeros(len(channels))
+    for i, ch in enumerate(channels):
+        if ch in stream_data:
+            data = stream_data[ch]
+            means[i] = np.mean(data)
 
+    return means
+
+def stream_std(raw_data, channels, t0=0, t1=inf):
+    """ Std per channel """
+    rec = raw_data.recordings[0]
+    stream = rec.analog_streams[0]
+    stream_data = get_stream_data_in_range(stream, channels, t0, t1)
+
+    stds = np.zeros(len(channels))
+    for i, ch in enumerate(channels):
+        if ch in stream_data:
+            data = stream_data[ch]
+            stds[i] = np.std(data)
+
+    return stds
+
+def stream_min(raw_data, channels, t0=0, t1=inf):
+    """ Min per channel """
+    rec = raw_data.recordings[0]
+    stream = rec.analog_streams[0]
+    stream_data = get_stream_data_in_range(stream, channels, t0, t1)
+
+    mins = np.zeros(len(channels))
+    for i, ch in enumerate(channels):
+        if ch in stream_data:
+            data = stream_data[ch]
+            mins[i] = np.min(data)
+
+    return mins
+
+def stream_max(raw_data, channels, t0=0, t1=inf):
+    """ Max per channel """
+    rec = raw_data.recordings[0]
+    stream = rec.analog_streams[0]
+    stream_data = get_stream_data_in_range(stream, channels, t0, t1)
+
+    maxs = np.zeros(len(channels))
+    for i, ch in enumerate(channels):
+        if ch in stream_data:
+            data = stream_data[ch]
+            maxs[i] = np.max(data)
+
+    return maxs
 
 def normalize_stats(stats_data, divisor):
     if len(stats_data.shape) > len(divisor.shape):
@@ -108,7 +161,10 @@ def plot_stats_total(stats, stats_data, xticks, labels, title=None):
         y = stats_data[k]
         if len(y.shape) == 2:
             # Aggregate
-            y = np.sum(y, axis=1)
+            if k in ('mean', 'std'):
+                y = np.mean(y, axis=1)
+            else:
+                y = np.sum(y, axis=1)
 
         line, = plt.plot(x, y, label=labels[i])
 
@@ -164,6 +220,22 @@ def main(args):
         if 'bit_count' in stats:
             bc = bit_count(raw_data, channels, t0, t1)
             stats_data['bit_count'].append(bc)
+
+        if 'mean' in stats:
+            m = stream_mean(raw_data, channels, t0, t1)
+            stats_data['mean'].append(m)
+
+        if 'std' in stats:
+            m = stream_std(raw_data, channels, t0, t1)
+            stats_data['std'].append(m)
+
+        if 'min' in stats:
+            m = stream_min(raw_data, channels, t0, t1)
+            stats_data['min'].append(m)
+
+        if 'max' in stats:
+            m = stream_max(raw_data, channels, t0, t1)
+            stats_data['max'].append(m)
 
         # date = datetime.datetime(1, 1, 1) + datetime.timedelta(microseconds=int(raw_data.date_in_clr_ticks)/10)
         # dates.append(date)

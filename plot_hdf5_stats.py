@@ -173,6 +173,72 @@ def plot_stats_total(stats, stats_data, xticks, labels, title=None):
     plt.subplots_adjust(bottom=0.4)
     plt.title(title)
 
+def plot_stats_per_channel(channels, stats, stats_data, xticks, labels, title=None, heatmap=False):
+    n_stats = len(stats)
+    n_cols = int(np.ceil(np.sqrt(n_stats)))
+    n_rows = int(np.ceil(n_stats / n_cols))
+
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(11,11))
+    axes = np.atleast_1d(axes).flatten()
+
+    x = np.arange(len(xticks))
+    channels = np.array(sorted(channels))
+    for i, k in enumerate(stats):
+        y = stats_data[k]
+        ax = axes[i]
+        ax.set_title(labels[i])
+        if len(y.shape) == 2:
+            if heatmap:
+                Z = y.T
+                Y = np.arange(len(channels)+1)
+
+                im = ax.imshow(Z, aspect='auto', origin='lower')
+
+                y_ax = ax.get_yaxis()  ## Get X axis
+                y_ax.set_major_locator(ticker.MaxNLocator(integer=True))  ## Set major locators to integer values
+
+
+                yticks = ax.get_yticks().astype(int)
+                yticklabels = [channels[j] if j >= 0 and j < len(channels) else 0 for j in yticks]
+                ax.set_yticklabels(yticklabels)
+
+                ax.grid(False)
+                ax.set_ylabel("Channel")
+
+                def format_coord(x, y):
+                    s = ""
+                    xi = int(x+0.5)
+                    if xi >= 0 and xi < len(xticks):
+                        # s += str(x)
+                        s += xticks[xi]
+
+                    yi = int(y+0.5)
+                    if yi >= 0 and yi < len(channels):
+                        s += "\tCH{}".format(channels[yi])
+
+                    return s
+
+                ax.format_coord = format_coord
+
+                cb = plt.colorbar(im)
+                cb.set_label(labels[i])
+
+            else:
+                for j, ch in enumerate(channels):
+                    ax.plot(x, y.T[j], label="CH{}".format(ch))
+
+
+        else:
+            ax.plot(x, y)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(xticks, rotation='vertical')
+        # ax.legend()
+        ax.legend(loc='upper left', bbox_to_anchor=(1.0, 1.0))
+
+    plt.subplots_adjust(bottom=0.4)
+    plt.suptitle(title)
+
 
 def main(args):
     stats = args.stats.split(',')
@@ -256,7 +322,9 @@ def main(args):
         xticks = list(map(os.path.basename, args.files))
         plot_stats_total(stats, stats_data, xticks, labels, title)
     else:
-        raise NotImplementedError()
+        # per-channel
+        xticks = list(map(os.path.basename, args.files))
+        plot_stats_per_channel(channels, stats, stats_data, xticks, labels, title, args.heatmap)
 
     if args.output:
         plt.savefig(args.output)
@@ -271,13 +339,14 @@ if __name__ == '__main__':
             help='save plot to file')
     parser.add_argument('-s', '--stats', default='spike_count',
                         help='what stats to plot [{}] (default: %(default)s)'.format(','.join(stats_available)))
-    parser.add_argument('-m', '--mode', choices=('total', 'per-channel'), default='total')
     parser.add_argument('-t0', type=float, default=0)
     parser.add_argument('-t1', type=float, default=inf)
     parser.add_argument('-ch', '--channels', help='list of channels (default: all)')
     parser.add_argument('-ech', '--exclude-channels')
     parser.add_argument('-n', '--normalize', action='store_true',
             help='normalize by sample_count')
+    parser.add_argument('-m', '--mode', choices=('total', 'per-channel'), default='total')
+    parser.add_argument('-hm', '--heatmap', action='store_true', default=False)
     parser.add_argument('files', nargs='+', metavar='FILE',
             help='files to analyse (hdf5)')
 

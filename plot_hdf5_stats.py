@@ -100,30 +100,22 @@ def normalize_stats(stats_data, divisor):
 
 
 
-def plot_stats_total(stats, stats_data, xticks, labels):
-    fig, ax = plt.subplots(figsize=(11,11))
-    axes = [ax] + [plt.twinx() for i in range(len(stats) - 1)]
-    prop_cycler = ax._get_lines.prop_cycler
+def plot_stats_total(stats, stats_data, xticks, labels, title=None):
+    plt.figure(figsize=(11,11))
 
     x = xticks
-    ax.set_xticklabels(xticks, rotation='vertical')
-    lines = []
-
     for i, k in enumerate(stats):
-        ax = axes[i]
         y = stats_data[k]
         if len(y.shape) == 2:
             # Aggregate
             y = np.sum(y, axis=1)
 
-        line, = ax.plot(x, y, label=labels[i], **prop_cycler.next())
-        lines.append(line)
-        ax.set_ylabel(labels[i], color=line.get_color())
+        line, = plt.plot(x, y, label=labels[i])
 
-    labels = [l.get_label() for l in lines]
-    plt.legend(lines, labels)
+    plt.legend()
+    plt.xticks(rotation='vertical')
     plt.subplots_adjust(bottom=0.4)
-
+    plt.title(title)
 
 
 def main(args):
@@ -140,13 +132,18 @@ def main(args):
     if channels:
         channels = channels.split(',')
         channels = set(map(int, channels))
+        title = "Channels: " + args.channels
     else:
+        title = "All channels"
         channels = set(range(60)) # TODO: dont hardcode this
 
     if args.exclude_channels:
         exclude_channels = args.exclude_channels.split(',')
         exclude_channels = set(map(int, exclude_channels))
         channels = channels - exclude_channels
+        title += " excluding " + args.exclude_channels
+
+    title += ", t={}-{}".format(t0, t1)
 
     for i, filename in enumerate(args.files):
         print("Processing {}...".format(filename))
@@ -185,7 +182,7 @@ def main(args):
 
     if args.mode == 'total':
         xticks = list(map(os.path.basename, args.files))
-        plot_stats_total(stats, stats_data, xticks, labels)
+        plot_stats_total(stats, stats_data, xticks, labels, title)
     else:
         raise NotImplementedError()
 

@@ -44,7 +44,7 @@ from McsPy import ureg
 
 McsPy.McsData.VERBOSE = False
 
-stats_available = set(('sample_count', 'spike_count', 'bit_count', 'mean', 'std', 'min', 'max'))
+stats_available = set(('sample_count', 'duration', 'spike_count', 'bit_count', 'mean', 'std', 'min', 'max'))
 
 def sample_count(raw_data):
     """ Sample count all channels """
@@ -53,6 +53,11 @@ def sample_count(raw_data):
     n_samples = stream.channel_data.shape[1]
 
     return n_samples
+
+def duration(raw_data):
+    """ Recording duration in seconds """
+    rec = raw_data.recordings[0]
+    return rec.duration_time.to('seconds').magnitude
 
 def spike_count(raw_data, channels, t0=0, t1=inf):
     """ Spike count per channel """
@@ -275,9 +280,13 @@ def main(args):
         stream = rec.analog_streams[0]
         timestamps = rec.timestamp_streams[0].timestamp_entity
 
-        if 'sample_count' in stats or args.normalize:
+        if 'sample_count' in stats:
             sc = sample_count(raw_data)
             stats_data['sample_count'].append(sc)
+
+        if 'duration' in stats or args.normalize:
+            d = duration(raw_data)
+            stats_data['duration'].append(d)
 
         if 'spike_count' in stats:
             sc = spike_count(raw_data, channels, t0, t1)
@@ -315,8 +324,8 @@ def main(args):
         for i,k in enumerate(stats):
             if k not in ('spike_count', 'bit_count'):
                 continue
-            stats_data[k] = normalize_stats(stats_data[k], stats_data['sample_count'])
-            labels[i] += ' (normalized)'
+            stats_data[k] = normalize_stats(stats_data[k], stats_data['duration'])
+            labels[i] += ' / second'
 
     if args.mode == 'total':
         xticks = list(map(os.path.basename, args.files))
@@ -344,7 +353,7 @@ if __name__ == '__main__':
     parser.add_argument('-ch', '--channels', help='list of channels (default: all)')
     parser.add_argument('-ech', '--exclude-channels')
     parser.add_argument('-n', '--normalize', action='store_true',
-            help='normalize by sample_count')
+            help='normalize by duration')
     parser.add_argument('-m', '--mode', choices=('total', 'per-channel'), default='total')
     parser.add_argument('-hm', '--heatmap', action='store_true', default=False)
     parser.add_argument('files', nargs='+', metavar='FILE',

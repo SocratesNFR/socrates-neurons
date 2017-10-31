@@ -1,30 +1,4 @@
 #!/usr/bin/env python2
-#
-# Stats:
-#   sample_count
-#   spike_count
-#   bit_count
-#   mean
-#   std
-#
-# Aggregate:
-#   All channels
-#   Per channel
-#
-# Filters:
-#   Channels
-#   Time range
-#
-# Data format
-#   array with N rows, M columns
-#      N = number of files
-#      M = number of channels
-#
-#   -- or --
-#
-#   array with N rows
-#      N = number of files
-#
 from __future__ import print_function, division
 import sys
 import os
@@ -33,122 +7,12 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import datetime
 from collections import defaultdict
+import pickle
 
 from nevroutil import *
+from hdf5_stats import stats_available
 
 inf = float('inf')
-
-import McsPy.McsData
-import McsPy.McsCMOS
-from McsPy import ureg
-
-McsPy.McsData.VERBOSE = False
-
-stats_available = set(('sample_count', 'duration', 'spike_count', 'bit_count', 'mean', 'std', 'min', 'max'))
-
-def sample_count(raw_data):
-    """ Sample count all channels """
-    rec = raw_data.recordings[0]
-    stream = rec.analog_streams[0]
-    n_samples = stream.channel_data.shape[1]
-
-    return n_samples
-
-def duration(raw_data):
-    """ Recording duration in seconds """
-    rec = raw_data.recordings[0]
-    return rec.duration_time.to('seconds').magnitude
-
-def spike_count(raw_data, channels, t0=0, t1=inf):
-    """ Spike count per channel """
-    rec = raw_data.recordings[0]
-    te = rec.timestamp_streams[0].timestamp_entity
-    timestamps = get_timestamp_data_in_range(te, channels, t0, t1)
-
-    spike_counts = np.zeros(len(channels))
-    for i, ch in enumerate(channels):
-        if ch in timestamps:
-            spike_counts[i] = len(timestamps[ch])
-
-    return spike_counts
-
-def bit_count(raw_data, channels, t0=0, t1=inf):
-    """ Bit count per channel """
-    rec = raw_data.recordings[0]
-    stream = rec.analog_streams[0]
-    stream_data = get_stream_data_in_range(stream, channels, t0, t1)
-
-    bit_counts = np.zeros(len(channels))
-    for i, ch in enumerate(channels):
-        if ch in stream_data:
-            data = stream_data[ch]
-
-            mean = np.mean(data)
-            std = np.std(data)
-            th_lo = mean - 5 * std
-            th_hi = mean + 5 * std
-
-            bits = digitize(data, th_lo, th_hi)
-            idx = split_where(bits)
-            bit_counts[i] = len(idx)
-
-    return bit_counts
-
-def stream_mean(raw_data, channels, t0=0, t1=inf):
-    """ Mean per channel """
-    rec = raw_data.recordings[0]
-    stream = rec.analog_streams[0]
-    stream_data = get_stream_data_in_range(stream, channels, t0, t1)
-
-    means = np.zeros(len(channels))
-    for i, ch in enumerate(channels):
-        if ch in stream_data:
-            data = stream_data[ch]
-            means[i] = np.mean(data)
-
-    return means
-
-def stream_std(raw_data, channels, t0=0, t1=inf):
-    """ Std per channel """
-    rec = raw_data.recordings[0]
-    stream = rec.analog_streams[0]
-    stream_data = get_stream_data_in_range(stream, channels, t0, t1)
-
-    stds = np.zeros(len(channels))
-    for i, ch in enumerate(channels):
-        if ch in stream_data:
-            data = stream_data[ch]
-            stds[i] = np.std(data)
-
-    return stds
-
-def stream_min(raw_data, channels, t0=0, t1=inf):
-    """ Min per channel """
-    rec = raw_data.recordings[0]
-    stream = rec.analog_streams[0]
-    stream_data = get_stream_data_in_range(stream, channels, t0, t1)
-
-    mins = np.zeros(len(channels))
-    for i, ch in enumerate(channels):
-        if ch in stream_data:
-            data = stream_data[ch]
-            mins[i] = np.min(data)
-
-    return mins
-
-def stream_max(raw_data, channels, t0=0, t1=inf):
-    """ Max per channel """
-    rec = raw_data.recordings[0]
-    stream = rec.analog_streams[0]
-    stream_data = get_stream_data_in_range(stream, channels, t0, t1)
-
-    maxs = np.zeros(len(channels))
-    for i, ch in enumerate(channels):
-        if ch in stream_data:
-            data = stream_data[ch]
-            maxs[i] = np.max(data)
-
-    return maxs
 
 def normalize_stats(stats_data, divisor):
     if len(stats_data.shape) > len(divisor.shape):
@@ -156,12 +20,10 @@ def normalize_stats(stats_data, divisor):
     return stats_data / divisor
 
 
-
-
 def plot_stats_total(stats, stats_data, xticks, labels, title=None):
     plt.figure(figsize=(11,11))
 
-    x = xticks
+    x = np.array(xticks)
     for i, k in enumerate(stats):
         y = stats_data[k]
         if len(y.shape) == 2:
@@ -187,7 +49,6 @@ def plot_stats_per_channel(channels, stats, stats_data, xticks, labels, title=No
     axes = np.atleast_1d(axes).flatten()
 
     x = np.arange(len(xticks))
-    channels = np.array(sorted(channels))
     for i, k in enumerate(stats):
         y = stats_data[k]
         ax = axes[i]
@@ -246,93 +107,70 @@ def plot_stats_per_channel(channels, stats, stats_data, xticks, labels, title=No
 
 
 def main(args):
-    stats = args.stats.split(',')
-    t0 = args.t0
-    t1 = args.t1
+    print("Loading {}...".format(args.file))
 
-    assert set(stats) - stats_available == set()
+    data = pickle.load(open(args.file, 'rb'))
+    stats_data = data['stats']
+    stats_available = set(stats_data.keys())
+    channels_available = data['channels']
+    t0 = data['t0']
+    t1 = data['t1']
+    xticks = list(map(os.path.basename, data['files']))
 
-    stats_data = defaultdict(list)
+    print("Stats available:", ", ".join(stats_available))
+
+    if args.stats == 'all':
+        stats = stats_available
+    else:
+        stats = set(args.stats.split(','))
+
+    print("Stats:", ", ".join(stats))
+
+    assert all(s in stats_data for s in stats)
+    if args.normalize:
+        assert 'duration' in stats_data
 
     # Channel selection
     channels = args.channels
-    if channels:
-        channels = channels.split(',')
-        channels = set(map(int, channels))
-        title = "Channels: " + args.channels
-    else:
+    if channels == 'all':
+        channels = channels_available
         title = "All channels"
-        channels = set(range(60)) # TODO: dont hardcode this
+    else:
+        channels = channels.split(',')
+        channels = list(map(int, channels))
+        assert all(ch in channels_available for ch in channels)
+        title = "Channels: " + args.channels
 
     if args.exclude_channels:
         exclude_channels = args.exclude_channels.split(',')
-        exclude_channels = set(map(int, exclude_channels))
-        channels = channels - exclude_channels
+        exclude_channels = list(map(int, exclude_channels))
+        channels = list(set(channels) - set(exclude_channels))
         title += " excluding " + args.exclude_channels
 
+    if args.channels != 'all' or args.exclude_channels:
+        # Filter
+        channel_inds = [channels_available.index(ch) for ch in channels]
+        print("Filter", channels_available, channels, channel_inds)
+        for k in stats_data:
+            print(stats_data[k].shape)
+            if len(stats_data[k].shape) == 2:
+                stats_data[k] = stats_data[k][:,channel_inds]
+
     title += ", t={}-{}".format(t0, t1)
-
-    for i, filename in enumerate(args.files):
-        print("Processing {}...".format(filename))
-
-        raw_data = McsPy.McsData.RawData(filename)
-        rec = raw_data.recordings[0]
-        stream = rec.analog_streams[0]
-        timestamps = rec.timestamp_streams[0].timestamp_entity
-
-        if 'sample_count' in stats:
-            sc = sample_count(raw_data)
-            stats_data['sample_count'].append(sc)
-
-        if 'duration' in stats or args.normalize:
-            d = duration(raw_data)
-            stats_data['duration'].append(d)
-
-        if 'spike_count' in stats:
-            sc = spike_count(raw_data, channels, t0, t1)
-            stats_data['spike_count'].append(sc)
-
-        if 'bit_count' in stats:
-            bc = bit_count(raw_data, channels, t0, t1)
-            stats_data['bit_count'].append(bc)
-
-        if 'mean' in stats:
-            m = stream_mean(raw_data, channels, t0, t1)
-            stats_data['mean'].append(m)
-
-        if 'std' in stats:
-            m = stream_std(raw_data, channels, t0, t1)
-            stats_data['std'].append(m)
-
-        if 'min' in stats:
-            m = stream_min(raw_data, channels, t0, t1)
-            stats_data['min'].append(m)
-
-        if 'max' in stats:
-            m = stream_max(raw_data, channels, t0, t1)
-            stats_data['max'].append(m)
-
-        # date = datetime.datetime(1, 1, 1) + datetime.timedelta(microseconds=int(raw_data.date_in_clr_ticks)/10)
-        # dates.append(date)
-
-    for k in stats_data:
-        stats_data[k] = np.array(stats_data[k])
 
     labels = list(stats)
 
     if args.normalize:
-        for i,k in enumerate(stats):
+        for i, k in enumerate(stats):
             if k not in ('spike_count', 'bit_count'):
                 continue
             stats_data[k] = normalize_stats(stats_data[k], stats_data['duration'])
             labels[i] += ' / second'
 
     if args.mode == 'total':
-        xticks = list(map(os.path.basename, args.files))
         plot_stats_total(stats, stats_data, xticks, labels, title)
     else:
         # per-channel
-        xticks = list(map(os.path.basename, args.files))
         plot_stats_per_channel(channels, stats, stats_data, xticks, labels, title, args.heatmap)
 
     if args.output:
@@ -343,21 +181,19 @@ def main(args):
 if __name__ == '__main__':
     import argparse
 
-    parser = argparse.ArgumentParser(description='Plot hdf5 data.')
+    parser = argparse.ArgumentParser(description='Plot hdf5 stats.')
     parser.add_argument('-o', '--output', metavar='FILE',
             help='save plot to file')
-    parser.add_argument('-s', '--stats', default='spike_count',
-                        help='what stats to plot [{}] (default: %(default)s)'.format(','.join(stats_available)))
-    parser.add_argument('-t0', type=float, default=0)
-    parser.add_argument('-t1', type=float, default=inf)
-    parser.add_argument('-ch', '--channels', help='list of channels (default: all)')
+    parser.add_argument('-s', '--stats', default='all',
+                        help='what stats to plot [{}] or "all" (default: %(default)s)'.format(','.join(stats_available)))
+    parser.add_argument('-ch', '--channels', default='all',
+            help='list of channels (default: %(default)s)')
     parser.add_argument('-ech', '--exclude-channels')
     parser.add_argument('-n', '--normalize', action='store_true',
             help='normalize by duration')
     parser.add_argument('-m', '--mode', choices=('total', 'per-channel'), default='total')
     parser.add_argument('-hm', '--heatmap', action='store_true', default=False)
-    parser.add_argument('files', nargs='+', metavar='FILE',
-            help='files to analyse (hdf5)')
+    parser.add_argument('file', help='pickle file from hdf5_stats.py')
 
     args = parser.parse_args()
     main(args)

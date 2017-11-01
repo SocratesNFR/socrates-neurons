@@ -20,10 +20,9 @@ def normalize_stats(stats_data, divisor):
     return stats_data / divisor
 
 
-def plot_stats_total(stats, stats_data, xticks, labels, title=None):
+def plot_stats_total(stats, stats_data, x, xticks, labels, title=None):
     plt.figure(figsize=(11,11))
 
-    x = np.array(xticks)
     for i, k in enumerate(stats):
         y = stats_data[k]
         if len(y.shape) == 2:
@@ -36,11 +35,12 @@ def plot_stats_total(stats, stats_data, xticks, labels, title=None):
         line, = plt.plot(x, y, label=labels[i])
 
     plt.legend()
-    plt.xticks(rotation='vertical')
+    if xticks:
+        plt.xticks(x, xticks, rotation='vertical')
     plt.subplots_adjust(bottom=0.4)
     plt.title(title)
 
-def plot_stats_per_channel(channels, stats, stats_data, xticks, labels, title=None, heatmap=False):
+def plot_stats_per_channel(channels, stats, stats_data, x, xticks, labels, title=None, heatmap=False):
     n_stats = len(stats)
     n_cols = int(np.ceil(np.sqrt(n_stats)))
     n_rows = int(np.ceil(n_stats / n_cols))
@@ -48,7 +48,11 @@ def plot_stats_per_channel(channels, stats, stats_data, xticks, labels, title=No
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(11,11))
     axes = np.atleast_1d(axes).flatten()
 
-    x = np.arange(len(xticks))
+    if heatmap and not xticks:
+        xticks = x
+        x = np.arange(len(xticks))
+
+    channels = list(channels)
     for i, k in enumerate(stats):
         y = stats_data[k]
         ax = axes[i]
@@ -112,10 +116,17 @@ def main(args):
     data = pickle.load(open(args.file, 'rb'))
     stats_data = data['stats']
     stats_available = set(stats_data.keys())
-    channels_available = data['channels']
+    channels_available = list(data['channels'])
     t0 = data['t0']
     t1 = data['t1']
-    xticks = list(map(os.path.basename, data['files']))
+
+    if args.dates:
+        x = data['file_dates']
+        # xticks = data['file_dates']
+        xticks = None
+    else:
+        xticks = list(map(os.path.basename, data['files']))
+        x = np.arange(len(xticks))
 
     print("Stats available:", ", ".join(stats_available))
 
@@ -150,9 +161,7 @@ def main(args):
     if args.channels != 'all' or args.exclude_channels:
         # Filter
         channel_inds = [channels_available.index(ch) for ch in channels]
-        print("Filter", channels_available, channels, channel_inds)
         for k in stats_data:
-            print(stats_data[k].shape)
             if len(stats_data[k].shape) == 2:
                 stats_data[k] = stats_data[k][:,channel_inds]
 
@@ -168,10 +177,10 @@ def main(args):
             labels[i] += ' / second'
 
     if args.mode == 'total':
-        plot_stats_total(stats, stats_data, xticks, labels, title)
+        plot_stats_total(stats, stats_data, x, xticks, labels, title)
     else:
         # per-channel
-        plot_stats_per_channel(channels, stats, stats_data, xticks, labels, title, args.heatmap)
+        plot_stats_per_channel(channels, stats, stats_data, x, xticks, labels, title, args.heatmap)
 
     if args.output:
         plt.savefig(args.output)
@@ -193,6 +202,7 @@ if __name__ == '__main__':
             help='normalize by duration')
     parser.add_argument('-m', '--mode', choices=('total', 'per-channel'), default='total')
     parser.add_argument('-hm', '--heatmap', action='store_true', default=False)
+    parser.add_argument('--dates', action='store_true')
     parser.add_argument('file', help='pickle file from hdf5_stats.py')
 
     args = parser.parse_args()

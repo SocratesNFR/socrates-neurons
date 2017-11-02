@@ -19,6 +19,7 @@ def hdf5_info(filename, channel_list=False):
     raw_data = McsPy.McsData.RawData(filename)
     for i, rec in raw_data.recordings.items():
         print("  Recording {}:".format(i))
+        print("    Duration: {}s".format(rec.duration_time.to('seconds').magnitude))
         for j, stream in rec.analog_streams.items():
             n_channels = stream.channel_data.shape[0]
             n_samples = stream.channel_data.shape[1]

@@ -35,7 +35,7 @@ def plot_stats_total(stats, stats_data, x, xticks, labels, title=None):
         line, = plt.plot(x, y, label=labels[i])
 
     plt.legend()
-    if xticks:
+    if xticks is not None:
         plt.xticks(x, xticks, rotation='vertical')
     plt.subplots_adjust(bottom=0.4)
     plt.title(title)
@@ -48,7 +48,7 @@ def plot_stats_per_channel(channels, stats, stats_data, x, xticks, labels, title
     fig, axes = plt.subplots(n_rows, n_cols, figsize=(11,11))
     axes = np.atleast_1d(axes).flatten()
 
-    if heatmap and not xticks:
+    if heatmap and xticks is None:
         xticks = x
         x = np.arange(len(xticks))
 
@@ -117,16 +117,28 @@ def main(args):
     stats_data = data['stats']
     stats_available = set(stats_data.keys())
     channels_available = list(data['channels'])
+    files = data['files']
     t0 = data['t0']
     t1 = data['t1']
 
+    xinds = np.arange(len(files))
+    if args.exclude_files:
+        exclude_files = np.array(map(int, args.exclude_files.split(',')))
+        xinds = np.setdiff1d(xinds, exclude_files)
+        # xticks = xticks[inds]
+        for k in stats_data:
+            stats_data[k] = stats_data[k][xinds]
+
+    x = np.arange(len(xinds))
     if args.dates:
-        x = data['file_dates']
-        # xticks = data['file_dates']
+        x = np.array(data['file_dates'])
+        x = x[xinds]
         xticks = None
+        # xticks = np.array(data['file_dates'])
     else:
-        xticks = list(map(os.path.basename, data['files']))
-        x = np.arange(len(xticks))
+        xticks = np.array(map(os.path.basename, files))
+        xticks = xticks[xinds]
+
 
     print("Stats available:", ", ".join(stats_available))
 
@@ -198,6 +210,7 @@ if __name__ == '__main__':
     parser.add_argument('-ch', '--channels', default='all',
             help='list of channels (default: %(default)s)')
     parser.add_argument('-ech', '--exclude-channels')
+    parser.add_argument('-ex', '--exclude-files')
     parser.add_argument('-n', '--normalize', action='store_true',
             help='normalize by duration')
     parser.add_argument('-m', '--mode', choices=('total', 'per-channel'), default='total')

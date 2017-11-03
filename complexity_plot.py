@@ -14,6 +14,7 @@ def main(args):
     method = data['method']
     complexity = data['complexity']
     files = data['files']
+    labels = list(map(os.path.basename, files))
     channels = data['channels']
 
     n_results = len(complexity)
@@ -33,9 +34,15 @@ def main(args):
         if method == 'per-channel':
             mean = np.mean(c)
             std = np.std(c)
-            print("  {}: mean={} std={}".format(i, mean, std))
+            ch_sort = np.argsort(c)
+            c_sort = np.sort(c)
+            print("  [{}] {}: mean={:.2f} std={:.2f} min={:.2f} max={:.2f}".format(
+                i, labels[i], mean, std, c_sort[0], c_sort[-1]))
+            print("       c_sort=[{}]".format(
+                ", ".join("{:.2f}".format(ci) for ci in c_sort)))
+            print("       ch_sort={}".format(ch_sort.tolist()))
         else:
-            print("  {}: {}".format(i, c))
+            print("  [{}] {}: {}".format(i, labels[i], c))
 
     plt.title(os.path.basename(args.filename))
 
@@ -66,7 +73,7 @@ def main(args):
     if not args.dates:
         labels = map(os.path.basename, files)
         plt.xticks(x, labels, rotation='vertical')
-        plt.subplots_adjust(bottom=0.50)
+        plt.subplots_adjust(bottom=0.20)
 
     ymin, ymax = plt.ylim()
     if ymin < 0:

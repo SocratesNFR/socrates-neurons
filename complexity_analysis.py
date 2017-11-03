@@ -32,10 +32,10 @@ def digitize(data, th_lo, th_hi):
 compress = bz2.compress
 
 def complexity_all_channels(ddata):
-    return len(compress(ddata.tostring())) / len(ddata)
+    return len(compress(ddata.tostring()))
 
 def complexity_per_channel(ddata):
-    return list(map(complexity_all_channels, ddata.T))
+    return np.array(map(complexity_all_channels, ddata.T), dtype='float')
 
 def main(args):
     global compress
@@ -70,6 +70,7 @@ def main(args):
         raw_data = McsPy.McsData.RawData(filename)
         rec = raw_data.recordings[0]
         stream = rec.analog_streams[0]
+        duration = rec.duration_time.to('seconds').magnitude
 
         date = datetime.datetime(1, 1, 1) + datetime.timedelta(microseconds=int(raw_data.date_in_clr_ticks)/10)
         dates.append(date)
@@ -78,6 +79,7 @@ def main(args):
         if nsamples:
             # channel_data = channel_data[:,:231000] # For testing
             assert nsamples <= channel_data.shape[1], "Not enough samples (stream has {})".format(channel_data.shape[1])
+            duration *= (nsamples / channel_data.shape[1])
             channel_data = channel_data[:,:nsamples]
 
         chs = channels
@@ -90,6 +92,7 @@ def main(args):
         channel_list.append(chs)
 
         print("  Date: {}".format(date))
+        print("  Duration: {}s".format(duration))
         print("  {} channels, {} samples".format(channel_data.shape[0], channel_data.shape[1]))
         print("  ", end='')
 
@@ -116,9 +119,13 @@ def main(args):
         if args.method == 'per-channel':
             oc = complexity_per_channel(ddata)
             print("  Complexity (mean):", np.mean(oc))
+            oc /= duration
+            print("  Normalized complexity (mean):", np.mean(oc))
         else:
             oc = complexity_all_channels(ddata)
             print("  Complexity:", oc)
+            oc /= duration
+            print("  Normalized complexity:", oc)
 
         # print("  channel_data:", channel_data.shape, channel_data.dtype)
         # print("  ddata:", ddata.shape, ddata.dtype)

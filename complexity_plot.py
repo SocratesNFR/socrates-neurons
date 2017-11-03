@@ -44,7 +44,15 @@ def main(args):
         else:
             print("  [{}] {}: {}".format(i, labels[i], c))
 
-    plt.title(os.path.basename(args.filename))
+    if args.style:
+        plt.style.use(args.style)
+
+    if args.title is None:
+        title = os.path.basename(args.filename)
+    else:
+        title = args.title
+
+    plt.title(title)
 
     x = np.arange(len(complexity))
     if args.dates:
@@ -95,6 +103,8 @@ if __name__ == '__main__':
                         help='plot max value (per-channel only)')
     parser.add_argument('-d', '--dates', action='store_true',
                         help='plot dates on x axis')
+    parser.add_argument('-t', '--title')
+    parser.add_argument('--style', default=None)
     parser.add_argument('filename', metavar='FILE',
                         help='pickle file from complexity_analysis.py')
 

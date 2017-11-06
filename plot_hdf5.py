@@ -14,7 +14,7 @@ from McsPy import ureg
 
 McsPy.McsData.VERBOSE = False
 
-import nevroutil
+import utils
 
 
 
@@ -162,9 +162,9 @@ def plot(filename, recording=0, channels=None, spikes=False, t0=0, t1=inf, digit
             ax.axhline(th_lo, color='#348ABD')
 
 
-            bits = nevroutil.digitize(data, th_lo, th_hi)
+            bits = utils.digitize(data, th_lo, th_hi)
 
-            idx = nevroutil.split_where(bits)
+            idx = utils.split_where(bits)
             for i, j in idx:
                 ax.plot(t[i:j], data[i:j], color='#988ED5')
 

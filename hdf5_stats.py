@@ -35,7 +35,7 @@ import datetime
 from collections import defaultdict
 import pickle
 
-from nevroutil import *
+from utils import *
 
 inf = float('inf')
 

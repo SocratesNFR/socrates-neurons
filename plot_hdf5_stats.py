@@ -9,7 +9,7 @@ import datetime
 from collections import defaultdict
 import pickle
 
-from nevroutil import *
+from utils import *
 from hdf5_stats import stats_available
 
 inf = float('inf')

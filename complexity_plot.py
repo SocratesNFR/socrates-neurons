@@ -59,27 +59,40 @@ def main(args):
         x = data['dates']
 
     if method == 'per-channel':
-        if args.max:
-            max = np.array([np.max(v) for v in complexity])
-            line, = plt.plot(x, max)
-        else:
+        # Per channel scatter plot
+        plot = args.plot.split(',')
+        if 'all' in plot:
+            plot = ['mean', 'std', 'max', 'scatter']
+
+        line_color = None
+
+        for p in plot:
             mean = np.array([np.mean(v) for v in complexity])
             std = np.array([np.std(v) for v in complexity])
-            line, = plt.plot(x, mean)
-            plt.fill_between(x, mean-std, mean+std, alpha=0.25, facecolor=line.get_color())
+            max = np.array([np.max(v) for v in complexity])
 
-        # Per channel scatter plot
-        color = None
-        for i, v in enumerate(complexity):
-            line, = plt.plot(np.repeat(i, len(v)), v, '.', color=color)
-            color = line.get_color()
+            if p == 'mean':
+                line, = plt.plot(x, mean)
+                line_color = line.get_color()
+            elif p == 'max':
+                line, = plt.plot(x, max)
+            elif p == 'std':
+                line = plt.fill_between(x, mean-std, mean+std, alpha=0.25, facecolor=line_color)
+                line_color = line.get_facecolor()
+            elif p == 'scatter':
+                color = None
+                for i, v in enumerate(complexity):
+                    line, = plt.plot(np.repeat(i, len(v)), v, '.', color=color)
+                    color = line.get_color()
+            else:
+                raise ValueError(p)
 
     else:
         plt.plot(x, complexity)
 
     # ugh...
     if not args.dates:
-        labels = map(os.path.basename, files)
+        labels = [os.path.splitext(os.path.basename(f))[0] for f in files]
         plt.xticks(x, labels, rotation='vertical')
         plt.subplots_adjust(bottom=0.20)
 
@@ -99,8 +112,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Complexity plot')
     parser.add_argument('-o', '--output', metavar='FILE',
                         help='save plot to file')
-    parser.add_argument('-m', '--max', action='store_true',
-                        help='plot max value (per-channel only)')
+    parser.add_argument('-p', '--plot', default='scatter,mean,std',
+                        help='what to plot [mean|std|max|scatter] (default: %(default)s)')
     parser.add_argument('-d', '--dates', action='store_true',
                         help='plot dates on x axis')
     parser.add_argument('-t', '--title')

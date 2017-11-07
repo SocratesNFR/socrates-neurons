@@ -91,7 +91,11 @@ def main(args):
         plt.plot(x, complexity)
 
     # ugh...
-    if not args.dates:
+    if args.xticks:
+        labels = args.xticks.split(',')
+        xticks = np.linspace(x[0], x[-1], len(labels))
+        plt.xticks(xticks, labels)
+    elif not args.dates:
         labels = [os.path.splitext(os.path.basename(f))[0] for f in files]
         plt.xticks(x, labels, rotation='vertical')
         plt.subplots_adjust(bottom=0.20)
@@ -100,6 +104,7 @@ def main(args):
     if ymin < 0:
         plt.ylim(ymin=0)
     plt.ylabel("Complexity")
+    plt.xlabel("Time")
 
     if args.output:
         plt.savefig(args.output)
@@ -116,6 +121,7 @@ if __name__ == '__main__':
                         help='what to plot [mean|std|max|scatter] (default: %(default)s)')
     parser.add_argument('-d', '--dates', action='store_true',
                         help='plot dates on x axis')
+    parser.add_argument('--xticks', help='xtick labels')
     parser.add_argument('-t', '--title')
     parser.add_argument('--style', default=None)
     parser.add_argument('filename', metavar='FILE',

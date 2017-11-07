@@ -35,21 +35,22 @@ def main(args):
     print("  Method: {}".format(method))
     print("  #samples: {}".format(data['nsamples']))
     print("  Compression: {}".format(data['compression']))
-    print("")
 
-    for i, c in enumerate(complexity):
-        if method == 'per-channel':
-            mean = np.mean(c)
-            std = np.std(c)
-            ch_sort = np.argsort(c)
-            c_sort = np.sort(c)
-            print("  [{}] {}: mean={:.2f} std={:.2f} min={:.2f} max={:.2f}".format(
-                i, files[i], mean, std, c_sort[0], c_sort[-1]))
-            print("       c_sort=[{}]".format(
-                ", ".join("{:.2f}".format(ci) for ci in c_sort)))
-            print("       ch_sort={}".format(ch_sort.tolist()))
-        else:
-            print("  [{}] {}: {}".format(i, files[i], c))
+    if args.verbose:
+        print("")
+        for i, c in enumerate(complexity):
+            if method == 'per-channel':
+                mean = np.mean(c)
+                std = np.std(c)
+                ch_sort = np.argsort(c)
+                c_sort = np.sort(c)
+                print("  [{}] {}: mean={:.2f} std={:.2f} min={:.2f} max={:.2f}".format(
+                    i, files[i], mean, std, c_sort[0], c_sort[-1]))
+                print("       c_sort=[{}]".format(
+                    ", ".join("{:.2f}".format(ci) for ci in c_sort)))
+                print("       ch_sort={}".format(ch_sort.tolist()))
+            else:
+                print("  [{}] {}: {}".format(i, files[i], c))
 
     if args.style:
         plt.style.use(args.style)
@@ -131,6 +132,7 @@ if __name__ == '__main__':
     parser.add_argument('-x', '--exclude-files', nargs='*', help='exclude files from plot')
     parser.add_argument('-t', '--title')
     parser.add_argument('--style', default=None)
+    parser.add_argument('-v', '--verbose', action='store_true')
     parser.add_argument('filename', metavar='FILE',
                         help='pickle file from complexity_analysis.py')
 

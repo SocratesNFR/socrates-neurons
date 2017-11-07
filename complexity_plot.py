@@ -12,10 +12,17 @@ def main(args):
 
     data = pickle.load(open(args.filename, 'rb'))
     method = data['method']
-    complexity = data['complexity']
+    complexity = np.array(data['complexity'])
     files = data['files']
-    labels = list(map(os.path.basename, files))
+    files = [os.path.splitext(os.path.basename(f))[0] for f in files]
     channels = data['channels']
+
+    xinds = np.arange(len(files))
+    if args.exclude_files:
+        exclude_inds = [files.index(x) for x in args.exclude_files]
+        xinds = np.setdiff1d(xinds, exclude_inds)
+        complexity = complexity[xinds]
+        files = [files[i] for i in xinds]
 
     n_results = len(complexity)
     n_channels = np.mean([len(chs) for chs in channels])
@@ -37,12 +44,12 @@ def main(args):
             ch_sort = np.argsort(c)
             c_sort = np.sort(c)
             print("  [{}] {}: mean={:.2f} std={:.2f} min={:.2f} max={:.2f}".format(
-                i, labels[i], mean, std, c_sort[0], c_sort[-1]))
+                i, files[i], mean, std, c_sort[0], c_sort[-1]))
             print("       c_sort=[{}]".format(
                 ", ".join("{:.2f}".format(ci) for ci in c_sort)))
             print("       ch_sort={}".format(ch_sort.tolist()))
         else:
-            print("  [{}] {}: {}".format(i, labels[i], c))
+            print("  [{}] {}: {}".format(i, files[i], c))
 
     if args.style:
         plt.style.use(args.style)
@@ -96,8 +103,7 @@ def main(args):
         xticks = np.linspace(x[0], x[-1], len(labels))
         plt.xticks(xticks, labels)
     elif not args.dates:
-        labels = [os.path.splitext(os.path.basename(f))[0] for f in files]
-        plt.xticks(x, labels, rotation='vertical')
+        plt.xticks(x, files, rotation='vertical')
         plt.subplots_adjust(bottom=0.20)
 
     ymin, ymax = plt.ylim()
@@ -122,6 +128,7 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dates', action='store_true',
                         help='plot dates on x axis')
     parser.add_argument('--xticks', help='xtick labels')
+    parser.add_argument('-x', '--exclude-files', nargs='*', help='exclude files from plot')
     parser.add_argument('-t', '--title')
     parser.add_argument('--style', default=None)
     parser.add_argument('filename', metavar='FILE',
